@@ -12,3 +12,20 @@ npm-debug.log
 yarn-error.log
 /.idea
 /.vscode
+
+# Database files
+/database/database.sqlite
+
+# Cache files
+/bootstrap/cache/*.php
+
+# Log files
+/storage/logs/*.log
+
+# Compiled assets
+/public/build
+/public/mix-manifest.json
+
+# OS files
+.DS_Store
+Thumbs.db
