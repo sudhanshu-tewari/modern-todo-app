@@ -22,7 +22,7 @@ class TodoController extends Controller
             'due_date' => 'nullable|date'
         ]);
 
-        Todo::create($request->all());                
+          Todo::create($request->all());
         return redirect()->route('todos.index')->with('success', 'Todo created successfully!');
     }
 
