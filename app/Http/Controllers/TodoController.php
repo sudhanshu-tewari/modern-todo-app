@@ -23,8 +23,6 @@ class TodoController extends Controller
         ]);
 
           Todo::create($request->all());
-
-          
         return redirect()->route('todos.index')->with('success', 'Todo created successfully!');
     }
 
