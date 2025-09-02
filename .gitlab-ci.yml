@@ -71,14 +71,19 @@ test:
     APP_ENV: testing
     APP_DEBUG: "false"
     DB_CONNECTION: sqlite
-    DB_DATABASE: ":memory:"
+    DB_DATABASE: "database/database.sqlite"
   script:
     - cp .env.ci .env || true
+    - mkdir -p database
+    - touch database/database.sqlite   # <-- IMPORTANT FIX
     - php artisan key:generate --force
-    - php artisan migrate --force --no-interaction --database=sqlite || true
+    - php artisan migrate --force --no-interaction --database=sqlite
     - vendor/bin/phpunit --colors=always --stop-on-failure
   artifacts:
     when: always
+    paths:
+      - storage/logs/laravel.log
+      - storage/test-reports/
     reports:
       junit: storage/test-reports/junit.xml
     expire_in: 1 day
