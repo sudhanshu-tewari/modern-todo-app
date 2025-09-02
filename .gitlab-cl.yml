@@ -1,0 +1,171 @@
+# .gitlab-ci.yml
+# Laravel CI/CD pipeline for EC2 (Free Tier), SQLite based
+
+image: php:8.3-fpm-alpine
+
+stages:
+  - prepare
+  - lint
+  - test
+  - build
+  - deploy
+  - notify
+
+variables:
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer/cache"
+  NODE_OPTIONS: "--max_old_space_size=1024"
+  DB_CONNECTION: sqlite
+  DB_DATABASE: ":memory:"
+  ARTIFACT_EXPIRE_IN: 1 day
+
+before_script:
+  - apk update
+  - apk add --no-cache bash git openssh-client rsync zip curl nodejs npm sqlite sqlite-dev
+  - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+  - composer --version
+  - node -v || true
+  - npm -v || true
+
+# --------------------------
+# PREPARE
+# --------------------------
+prepare:
+  stage: prepare
+  image: php:8.3-cli-alpine
+  script:
+    - composer install --no-interaction --prefer-dist --no-scripts --no-progress --optimize-autoloader
+  artifacts:
+    name: "vendor-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - vendor/
+      - composer.lock
+    expire_in: 1 day
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-composer
+    paths:
+      - .composer/cache/
+
+# --------------------------
+# LINT
+# --------------------------
+lint:
+  stage: lint
+  image: php:8.3-cli-alpine
+  dependencies:
+    - prepare
+  script:
+    - composer require --no-interaction --dev phpstan/phpstan friendsofphp/php-cs-fixer || true
+    - ./vendor/bin/phpstan analyse --error-format=table -l 6 app || true
+    - ./vendor/bin/php-cs-fixer fix --dry-run --diff --verbose || true
+  allow_failure: false
+
+# --------------------------
+# TEST
+# --------------------------
+test:
+  stage: test
+  image: php:8.3-cli-alpine
+  dependencies:
+    - prepare
+  variables:
+    APP_ENV: testing
+    APP_DEBUG: "false"
+    DB_CONNECTION: sqlite
+    DB_DATABASE: ":memory:"
+  script:
+    - cp .env.ci .env || true
+    - php artisan key:generate --force
+    - php artisan migrate --force --no-interaction --database=sqlite || true
+    - vendor/bin/phpunit --colors=always --stop-on-failure
+  artifacts:
+    when: always
+    reports:
+      junit: storage/test-reports/junit.xml
+    expire_in: 1 day
+
+# --------------------------
+# BUILD
+# --------------------------
+build:
+  stage: build
+  image: node:20-alpine
+  dependencies:
+    - prepare
+  script:
+    - npm ci --silent
+    - npm run build --silent
+  artifacts:
+    name: "build-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - public/build/
+    expire_in: 1 day
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-npm
+    paths:
+      - node_modules/
+
+# --------------------------
+# DEPLOY
+# --------------------------
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - prepare
+    - build
+  before_script:
+    - apk add --no-cache openssh-client rsync bash zip
+    - mkdir -p ~/.ssh
+    - '[ -n "$CI" ] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config || true'
+    - chmod 700 ~/.ssh
+    - echo "$EC2_PRIVATE_KEY" > ~/.ssh/deploy_key
+    - chmod 600 ~/.ssh/deploy_key
+    - eval $(ssh-agent -s) && ssh-add ~/.ssh/deploy_key
+  variables:
+    DEPLOY_BASE: "${BASE_PATH:-/var/www/html/modern-todo-app}"
+    RELEASES_DIR: "$DEPLOY_BASE/releases"
+    CURRENT_DIR: "$DEPLOY_BASE/current"
+    KEEP_RELEASES: 5
+  script:
+    - echo "📦 Packaging release..."
+    - TIMESTAMP=$(date +%Y%m%d%H%M%S)
+    - RELEASE_DIR="$RELEASES_DIR/$TIMESTAMP"
+    - ZIP_FILE="/tmp/release_${TIMESTAMP}.zip"
+    - zip -r "$ZIP_FILE" . -x ".git/*" "node_modules/*" "storage/*" "vendor/*"
+    - rsync -avz --delete vendor/ "${EC2_USER}@${EC2_HOST}:$RELEASE_DIR/vendor/" || true
+    - rsync -avz --delete public/build/ "${EC2_USER}@${EC2_HOST}:$RELEASE_DIR/public/build/" || true
+    - rsync -avz "$ZIP_FILE" "${EC2_USER}@${EC2_HOST}:$RELEASE_DIR/"
+    - ssh ${EC2_USER}@${EC2_HOST} "set -e;
+      mkdir -p \"$RELEASE_DIR\";
+      cd \"$RELEASE_DIR\";
+      unzip -o $(basename $ZIP_FILE) -d \"$RELEASE_DIR\" || true;
+      if [ -f \"$DEPLOY_BASE/shared/.env\" ]; then
+      cp \"$DEPLOY_BASE/shared/.env\" \"$RELEASE_DIR/.env\";
+      fi;
+      composer install --no-dev --optimize-autoloader --working-dir=\"$RELEASE_DIR\";
+      chown -R www-data:www-data \"$RELEASE_DIR\";
+      chmod -R 775 \"$RELEASE_DIR/storage\" \"$RELEASE_DIR/bootstrap/cache\" || true;
+      ln -sfnT \"$RELEASE_DIR\" \"$CURRENT_DIR\";
+      cd \"$RELEASES_DIR\" && ls -dt */ | tail -n +$KEEP_RELEASES | xargs -r rm -rf;
+      php \"$CURRENT_DIR/artisan\" migrate --force || true;
+      php \"$CURRENT_DIR/artisan\" cache:clear || true;
+      "
+    - rm -f "$ZIP_FILE"
+  environment:
+    name: production
+    url: $APP_URL
+  only:
+    - main
+  when: on_success
+
+# --------------------------
+# NOTIFY
+# --------------------------
+notify:
+  stage: notify
+  image: curlimages/curl:7.88.1
+  script:
+    - '[ "$CI_PIPELINE_STATUS" = "success" ] && echo "✅ Pipeline success" || echo "❌ Pipeline failed"'
+  when: always
+  only:
+    - main
