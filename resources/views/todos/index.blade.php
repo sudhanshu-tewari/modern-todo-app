@@ -50,7 +50,7 @@
         <div class="bg-white rounded-xl shadow-lg p-6 animate-slide-up">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-xl font-semibold text-gray-800">
-                    <i class="fas fa-list text-indigo-600 mr-2"></i>
+                    <i class="fas fa-list text-indigo-600 mr-2 "></i>
                     Your Todos ({{ $todos->count() }})
                 </h2>
 
