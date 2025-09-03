@@ -82,10 +82,10 @@ test:
   artifacts:
     when: always
     paths:
-      - storage/logs/laravel.log
-      - storage/test-reports/
+      - cd $BASE_PATH && storage/logs/laravel.log
+      - cd $BASE_PATH && storage/test-reports/
     reports:
-      junit: storage/test-reports/junit.xml
+      junit: cd $BASE_PATH && storage/test-reports/junit.xml
     expire_in: 1 day
 
 # --------------------------
