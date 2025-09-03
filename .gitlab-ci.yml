@@ -78,7 +78,7 @@ test:
     - touch database/database.sqlite   # <-- IMPORTANT FIX
     - cd $BASE_PATH && sudo php artisan key:generate --force
     - cd $BASE_PATH && sudo php artisan migrate --force --no-interaction --database=sqlite
-    - vendor/bin/phpunit --colors=always --stop-on-failure
+    - cd $BASE_PATH && vendor/bin/phpunit --colors=always --stop-on-failure
   artifacts:
     when: always
     paths:
