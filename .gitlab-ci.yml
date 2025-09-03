@@ -76,8 +76,8 @@ test:
     - cp .env.ci .env || true
     - mkdir -p database
     - touch database/database.sqlite   # <-- IMPORTANT FIX
-    - sudo php artisan key:generate --force
-    - sduo php artisan migrate --force --no-interaction --database=sqlite
+    - cd $BASE_PATH && sudo php artisan key:generate --force
+    - cd $BASE_PATH && sudo php artisan migrate --force --no-interaction --database=sqlite
     - vendor/bin/phpunit --colors=always --stop-on-failure
   artifacts:
     when: always
