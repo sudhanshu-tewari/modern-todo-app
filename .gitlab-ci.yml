@@ -81,7 +81,7 @@ test:
     - mkdir -p storage/test-reports
     # Run tests, always generate junit.xml even on failure
     - vendor/bin/phpunit --colors=always --log-junit=storage/test-reports/junit.xml || true
- artifacts:
+  artifacts:
     when: always
     paths:
       - storage/logs/laravel.log
@@ -89,6 +89,7 @@ test:
     reports:
       junit: storage/test-reports/junit.xml
     expire_in: 1 day
+
 
 # --------------------------
 # BUILD
