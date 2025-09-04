@@ -75,17 +75,17 @@ test:
   script:
     - cp .env.ci .env || true
     - mkdir -p database
-    - touch database/database.sqlite   # <-- IMPORTANT FIX
+    - touch database/database.sqlite
     - cd $BASE_PATH && sudo php artisan key:generate --force
     - cd $BASE_PATH && sudo php artisan migrate --force --no-interaction --database=sqlite
     - cd $BASE_PATH && vendor/bin/phpunit --colors=always --stop-on-failure
   artifacts:
     when: always
     paths:
-      - cd $BASE_PATH && storage/logs/laravel.log
-      - cd $BASE_PATH && storage/test-reports/
+      - storage/logs/laravel.log
+      - storage/test-reports/
     reports:
-      junit: cd $BASE_PATH && storage/test-reports/junit.xml
+      junit: storage/test-reports/junit.xml
     expire_in: 1 day
 
 # --------------------------
