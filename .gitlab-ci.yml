@@ -70,16 +70,13 @@ test:
   variables:
     APP_ENV: testing
     APP_DEBUG: "false"
-    DB_CONNECTION: sqlite
-    DB_DATABASE: "database/database.sqlite"
   script:
-    - cp .env.ci .env || true
+    - cp .env.ci .env
     - mkdir -p database
-    - touch database/database.sqlite
+    - touch $CI_PROJECT_DIR/database/database.sqlite
     - php artisan key:generate --force
-    - php artisan migrate --force --no-interaction --database=sqlite
+    - php artisan migrate --force --no-interaction
     - mkdir -p storage/test-reports
-    # Run tests, always generate junit.xml even on failure
     - vendor/bin/phpunit --colors=always --log-junit=storage/test-reports/junit.xml || true
   artifacts:
     when: always
@@ -89,6 +86,7 @@ test:
     reports:
       junit: storage/test-reports/junit.xml
     expire_in: 1 day
+
 
 
 # --------------------------
@@ -129,11 +127,6 @@ deploy:
     - echo "$EC2_PRIVATE_KEY" > ~/.ssh/deploy_key
     - chmod 600 ~/.ssh/deploy_key
     - eval $(ssh-agent -s) && ssh-add ~/.ssh/deploy_key
-  variables:
-    DEPLOY_BASE: "${BASE_PATH:-/var/www/html/modern-todo-app}"
-    RELEASES_DIR: "$DEPLOY_BASE/releases"
-    CURRENT_DIR: "$DEPLOY_BASE/current"
-    KEEP_RELEASES: 5
   script:
     - echo "📦 Packaging release..."
     - TIMESTAMP=$(date +%Y%m%d%H%M%S)
@@ -147,9 +140,11 @@ deploy:
       mkdir -p \"$RELEASE_DIR\";
       cd \"$RELEASE_DIR\";
       unzip -o $(basename $ZIP_FILE) -d \"$RELEASE_DIR\" || true;
-      if [ -f \"$DEPLOY_BASE/shared/.env\" ]; then
-      cp \"$DEPLOY_BASE/shared/.env\" \"$RELEASE_DIR/.env\";
+      if [ ! -f \"$DEPLOY_BASE/shared/.env\" ]; then
+      echo '❌ No .env found in shared directory! Aborting...';
+      exit 1;
       fi;
+      ln -sfn \"$DEPLOY_BASE/shared/.env\" \"$RELEASE_DIR/.env\";
       composer install --no-dev --optimize-autoloader --working-dir=\"$RELEASE_DIR\";
       chown -R www-data:www-data \"$RELEASE_DIR\";
       chmod -R 775 \"$RELEASE_DIR/storage\" \"$RELEASE_DIR/bootstrap/cache\" || true;
