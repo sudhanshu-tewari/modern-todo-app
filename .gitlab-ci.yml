@@ -76,9 +76,10 @@ test:
     - cp .env.ci .env || true
     - mkdir -p database
     - touch database/database.sqlite
-    - cd $BASE_PATH && sudo php artisan key:generate --force
-    - cd $BASE_PATH && sudo php artisan migrate --force --no-interaction --database=sqlite
-    - cd $BASE_PATH && vendor/bin/phpunit --colors=always --stop-on-failure
+    - php artisan key:generate --force
+    - php artisan migrate --force --no-interaction --database=sqlite
+    - mkdir -p storage/test-reports
+    - vendor/bin/phpunit --colors=always --stop-on-failure --log-junit storage/test-reports/junit.xml
   artifacts:
     when: always
     paths:
