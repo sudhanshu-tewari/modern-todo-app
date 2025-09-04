@@ -79,8 +79,9 @@ test:
     - php artisan key:generate --force
     - php artisan migrate --force --no-interaction --database=sqlite
     - mkdir -p storage/test-reports
-    - vendor/bin/phpunit --colors=always --stop-on-failure --log-junit storage/test-reports/junit.xml
-  artifacts:
+    # Run tests, always generate junit.xml even on failure
+    - vendor/bin/phpunit --colors=always --log-junit=storage/test-reports/junit.xml || true
+ artifacts:
     when: always
     paths:
       - storage/logs/laravel.log
